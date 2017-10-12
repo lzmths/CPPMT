@@ -1,8 +1,8 @@
 package br.edu.ufal.ic.easy.cppmt.mutation.operation;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.File;
 
+import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -11,6 +11,7 @@ import org.w3c.dom.NodeList;
 import br.edu.ufal.ic.easy.cppmt.mutation.Mutation;
 import br.edu.ufal.ic.easy.cppmt.mutation.MutationOperator;
 import br.edu.ufal.ic.easy.cppmt.util.xml.DocumentClone;
+import br.edu.ufal.ic.easy.cppmt.util.xml.Remove;
 
 /**
  * 
@@ -70,16 +71,26 @@ public class MCIB implements MutationOperator{
 				if (this.endifCount == this.ifdefAndIfndefAndIfCount) {
 					if (afterSiblingNode == null) return false;
 					if (before) {
-						if (this.beforeIfdefNodeSelected == null || afterSiblingNode == null) return false;
-						node.getParentNode().insertBefore(this.beforeIfdefNodeSelected, afterSiblingNode);
-						node.getParentNode().insertBefore(this.blankLine.cloneNode(true), afterSiblingNode);
-						return true;
+						try {
+							if (this.beforeIfdefNodeSelected == null || afterSiblingNode == null) return false;
+							if (!this.beforeIfdefNodeSelected.getOwnerDocument().equals(afterSiblingNode.getOwnerDocument())) return false;
+							node.getParentNode().insertBefore(this.beforeIfdefNodeSelected, afterSiblingNode);
+							node.getParentNode().insertBefore(this.blankLine.cloneNode(true), afterSiblingNode);
+							return true;
+						} catch (DOMException e) {
+							System.err.println(e.getMessage());
+						}
 					} else {
-						if (afterSiblingNode == null || this.IfdefNodeSelected == null) return false;
-						node.getParentNode().insertBefore(afterSiblingNode.cloneNode(true), this.IfdefNodeSelected);
-						node.getParentNode().insertBefore(this.blankLine.cloneNode(true), this.IfdefNodeSelected);
-						removeNode(afterSiblingNode);
-						return true;
+						try {
+							if (afterSiblingNode == null || this.IfdefNodeSelected == null) return false;
+							if (!this.IfdefNodeSelected.getOwnerDocument().equals(afterSiblingNode.getOwnerDocument())) return false;
+							node.getParentNode().insertBefore(afterSiblingNode.cloneNode(true), this.IfdefNodeSelected);
+							node.getParentNode().insertBefore(this.blankLine.cloneNode(true), this.IfdefNodeSelected);
+							removeNode(afterSiblingNode);
+							return true;
+						} catch(DOMException e) {
+							System.err.println(e.getMessage());
+						}
 					}
 				}
 			} 
@@ -129,8 +140,9 @@ public class MCIB implements MutationOperator{
 	}
 	
 	@Override
-	public List<Mutation> run(Document document) {
-		List<Mutation> result = new ArrayList<Mutation>();
+	public void run(Document document, File originalFile) {
+		Remove remove = new Remove();
+		document = remove.comments(document);
 		Document originalDocument = DocumentClone.clone(document);
 		Element elem = document.getDocumentElement();
 		final int candidates = elem.getElementsByTagName("cpp:ifdef").getLength() + elem.getElementsByTagName("cpp:ifndef").getLength() +
@@ -138,17 +150,20 @@ public class MCIB implements MutationOperator{
 		for (int i = 0, j = 0; i < candidates; ++i) {
 			resetFields(i + 1, document);
 			if (movingIfdefAndIfndefAndIf(document.getFirstChild(), null, null, true)) {
-				result.add(new Mutation(document, originalDocument, this, ++j));
+				Mutation mutation = new Mutation(document, originalDocument, this, ++j);
+				mutation.writeToFile(originalFile);
+				System.out.println("mutation: " + mutation.getMutationFile().getAbsolutePath());
 			}
 			document = DocumentClone.clone(originalDocument);
 			
 			resetFields(i + 1, document);
 			if (movingIfdefAndIfndefAndIf(document.getFirstChild(), null, null, false)) {
-				result.add(new Mutation(document, originalDocument, this, ++j));
+				Mutation mutation = new Mutation(document, originalDocument, this, ++j);
+				mutation.writeToFile(originalFile);
+				System.out.println("mutation: " + mutation.getMutationFile().getAbsolutePath());
 			}
 			document = DocumentClone.clone(originalDocument);
 		}
-		return result;
 	}
 
 	@Override
