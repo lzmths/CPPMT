@@ -3,6 +3,7 @@ bin/
 .classpath
 .settings/
 
+build/
 log/
 
 .idea/
